@@ -41,9 +41,18 @@ export type SummaryRow = {
 export function insertSummary(row: SummaryRow) {
   const stmt = db.prepare(
     `INSERT INTO summaries (id, source, url, title, transcript, summary, transcriptSource, createdAt)
-     VALUES ($id, $source, $url, $title, $transcript, $summary, $transcriptSource, $createdAt)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  stmt.run(row);
+  stmt.run(
+    row.id,
+    row.source,
+    row.url,
+    row.title,
+    row.transcript,
+    row.summary,
+    row.transcriptSource,
+    row.createdAt
+  );
 }
 
 export function listSummaries(limit = 20): SummaryRow[] {
