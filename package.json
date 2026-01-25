@@ -9,6 +9,8 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.16.15"
+    "astro": "^5.16.15",
+    "nanoid": "^5.0.7",
+    "youtube-transcript": "^1.1.2"
   }
 }

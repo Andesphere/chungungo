@@ -1,17 +1,373 @@
 ---
+import { listSummaries } from "../lib/db";
 
+const summaries = listSummaries();
 ---
 
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Signal / Summary Lab</title>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Local POC · Astro + Bun + SQLite</p>
+          <h1>Signal / Summary Lab</h1>
+          <p class="lead">
+            Paste a YouTube link, pull the transcript, and get a fast summary.
+            Stored locally so you can build a library over time.
+          </p>
+        </div>
+        <div class="badge">
+          <span>POC</span>
+          <p>Clawdbot‑ready</p>
+        </div>
+      </header>
+
+      <section class="input-panel">
+        <form id="summary-form">
+          <label>
+            <span>Video URL</span>
+            <input
+              name="url"
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              required
+            />
+          </label>
+          <button type="submit">Summarize</button>
+        </form>
+        <p id="status" class="status">Drop a link and hit summarize.</p>
+      </section>
+
+      <section class="summary-list" id="summary-list" data-empty={summaries.length === 0}>
+        <div class="empty">
+          <p>No summaries yet.</p>
+          <span>First one always feels good.</span>
+        </div>
+        {summaries.map((summary) => (
+          <article class="summary-card">
+            <header>
+              <p class="source">YouTube</p>
+              <time>{new Date(summary.createdAt).toLocaleString()}</time>
+            </header>
+            <h2>{summary.title ?? "Untitled video"}</h2>
+            <p class="summary-text">{summary.summary}</p>
+            <a href={summary.url} target="_blank" rel="noreferrer">
+              View source →
+            </a>
+          </article>
+        ))}
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById("summary-form");
+      const statusEl = document.getElementById("status");
+      const listEl = document.getElementById("summary-list");
+
+      const setStatus = (message, tone = "neutral") => {
+        statusEl.textContent = message;
+        statusEl.dataset.tone = tone;
+      };
+
+      const renderSummary = (summary) => {
+        const card = document.createElement("article");
+        card.className = "summary-card";
+        card.innerHTML = `
+          <header>
+            <p class="source">YouTube</p>
+            <time>${new Date(summary.createdAt).toLocaleString()}</time>
+          </header>
+          <h2>${summary.title ?? "Untitled video"}</h2>
+          <p class="summary-text">${summary.summary}</p>
+          <a href="${summary.url}" target="_blank" rel="noreferrer">View source →</a>
+        `;
+        listEl.prepend(card);
+        listEl.dataset.empty = "false";
+      };
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        const url = formData.get("url");
+        if (!url) return;
+
+        setStatus("Fetching transcript and building summary…", "busy");
+        form.querySelector("button").disabled = true;
+
+        try {
+          const res = await fetch("/api/summarize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to summarize.");
+          }
+
+          renderSummary(data);
+          form.reset();
+          setStatus("Summary stored. Drop another link.", "success");
+        } catch (error) {
+          setStatus(error.message || "Something went wrong.", "error");
+        } finally {
+          form.querySelector("button").disabled = false;
+        }
+      });
+    </script>
+  </body>
 </html>
+
+<style>
+  :root {
+    color-scheme: dark;
+    font-family: "Atkinson Hyperlegible", system-ui, sans-serif;
+    background: #050505;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: #f8f5f1;
+    background:
+      radial-gradient(circle at top left, rgba(199, 132, 255, 0.18), transparent 45%),
+      radial-gradient(circle at 80% 0%, rgba(99, 255, 237, 0.18), transparent 40%),
+      radial-gradient(circle at 20% 80%, rgba(255, 138, 96, 0.16), transparent 50%),
+      #070707;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 80px 24px 120px;
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.4em;
+    font-size: 0.7rem;
+    margin-bottom: 18px;
+    color: rgba(248, 245, 241, 0.55);
+  }
+
+  h1 {
+    font-family: "Fraunces", serif;
+    font-size: clamp(2.6rem, 4vw, 4.2rem);
+    margin: 0 0 18px;
+    letter-spacing: 0.02em;
+  }
+
+  .lead {
+    margin: 0;
+    max-width: 580px;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: rgba(248, 245, 241, 0.72);
+  }
+
+  .badge {
+    border: 1px solid rgba(248, 245, 241, 0.2);
+    border-radius: 16px;
+    padding: 16px 20px;
+    background: rgba(9, 9, 9, 0.8);
+    text-align: right;
+    font-size: 0.9rem;
+  }
+
+  .badge span {
+    display: inline-block;
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    margin-bottom: 10px;
+  }
+
+  .input-panel {
+    padding: 32px;
+    border-radius: 24px;
+    background: rgba(10, 10, 10, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    display: grid;
+    gap: 16px;
+  }
+
+  form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+  }
+
+  label {
+    display: grid;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: rgba(248, 245, 241, 0.7);
+  }
+
+  input {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    color: #f8f5f1;
+    font-size: 1rem;
+  }
+
+  input:focus {
+    outline: 2px solid rgba(111, 255, 224, 0.5);
+  }
+
+  button {
+    padding: 16px 28px;
+    border-radius: 999px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    background: linear-gradient(120deg, #ff8a60, #c784ff 60%, #5bffdd);
+    color: #050505;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+    transform: none;
+  }
+
+  button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(255, 138, 96, 0.25);
+  }
+
+  .status {
+    margin: 0;
+    font-size: 0.95rem;
+    color: rgba(248, 245, 241, 0.7);
+  }
+
+  .status[data-tone="success"] {
+    color: #5bffdd;
+  }
+
+  .status[data-tone="error"] {
+    color: #ff8a60;
+  }
+
+  .summary-list {
+    display: grid;
+    gap: 20px;
+  }
+
+  .summary-list[data-empty="true"] .summary-card {
+    display: none;
+  }
+
+  .summary-list[data-empty="false"] .empty {
+    display: none;
+  }
+
+  .empty {
+    padding: 32px;
+    border-radius: 20px;
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    text-align: center;
+    color: rgba(248, 245, 241, 0.6);
+  }
+
+  .summary-card {
+    padding: 28px 30px;
+    border-radius: 20px;
+    background: rgba(9, 9, 9, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    display: grid;
+    gap: 12px;
+  }
+
+  .summary-card header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgba(248, 245, 241, 0.5);
+  }
+
+  .summary-card h2 {
+    margin: 0;
+    font-family: "Fraunces", serif;
+    font-size: 1.5rem;
+  }
+
+  .summary-text {
+    margin: 0;
+    color: rgba(248, 245, 241, 0.76);
+    line-height: 1.6;
+  }
+
+  .summary-card a {
+    color: #5bffdd;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 840px) {
+    .hero {
+      grid-template-columns: 1fr;
+    }
+
+    form {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
