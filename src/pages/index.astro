@@ -67,7 +67,12 @@ const summaries = listSummaries();
         {summaries.map((summary) => (
           <article class="summary-card">
             <header>
-              <p class="source">YouTube</p>
+              <div class="meta">
+                <p class="source">YouTube</p>
+                <span class={`pill ${summary.transcriptSource}`}>
+                  {summary.transcriptSource === "whisper" ? "Whisper" : "Captions"}
+                </span>
+              </div>
               <time>{new Date(summary.createdAt).toLocaleString()}</time>
             </header>
             <h2>{summary.title ?? "Untitled video"}</h2>
@@ -93,9 +98,13 @@ const summaries = listSummaries();
       const renderSummary = (summary) => {
         const card = document.createElement("article");
         card.className = "summary-card";
+        const pill = summary.transcriptSource === "whisper" ? "Whisper" : "Captions";
         card.innerHTML = `
           <header>
-            <p class="source">YouTube</p>
+            <div class="meta">
+              <p class="source">YouTube</p>
+              <span class="pill ${summary.transcriptSource}">${pill}</span>
+            </div>
             <time>${new Date(summary.createdAt).toLocaleString()}</time>
           </header>
           <h2>${summary.title ?? "Untitled video"}</h2>
@@ -337,10 +346,37 @@ const summaries = listSummaries();
   .summary-card header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.2em;
     color: rgba(248, 245, 241, 0.5);
+  }
+
+  .meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    letter-spacing: 0.24em;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .pill.whisper {
+    color: #ffb18c;
+    border-color: rgba(255, 177, 140, 0.4);
+  }
+
+  .pill.captions {
+    color: #5bffdd;
+    border-color: rgba(91, 255, 221, 0.4);
   }
 
   .summary-card h2 {

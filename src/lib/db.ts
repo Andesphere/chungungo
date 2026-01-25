@@ -15,9 +15,17 @@ db.run(`
     title TEXT,
     transcript TEXT NOT NULL,
     summary TEXT NOT NULL,
+    transcriptSource TEXT NOT NULL DEFAULT 'captions',
     createdAt TEXT NOT NULL
   );
 `);
+
+// Backfill older databases
+try {
+  db.run("ALTER TABLE summaries ADD COLUMN transcriptSource TEXT NOT NULL DEFAULT 'captions'");
+} catch {
+  // column already exists
+}
 
 export type SummaryRow = {
   id: string;
@@ -26,13 +34,14 @@ export type SummaryRow = {
   title: string | null;
   transcript: string;
   summary: string;
+  transcriptSource: "captions" | "whisper";
   createdAt: string;
 };
 
 export function insertSummary(row: SummaryRow) {
   const stmt = db.prepare(
-    `INSERT INTO summaries (id, source, url, title, transcript, summary, createdAt)
-     VALUES ($id, $source, $url, $title, $transcript, $summary, $createdAt)`
+    `INSERT INTO summaries (id, source, url, title, transcript, summary, transcriptSource, createdAt)
+     VALUES ($id, $source, $url, $title, $transcript, $summary, $transcriptSource, $createdAt)`
   );
   stmt.run(row);
 }

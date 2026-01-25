@@ -61,11 +61,13 @@ export async function fetchYoutubeTranscript(url: string) {
   try {
     const items = await YoutubeTranscript.fetchTranscript(url);
     const text = items.map((item) => item.text).join(" ").trim();
-    if (text.length > 0) return text;
+    if (text.length > 0) {
+      return { text, source: "captions" as const };
+    }
   } catch {
     // fall through to whisper
   }
 
   const fallback = await transcribeWithWhisper(url);
-  return fallback;
+  return { text: fallback, source: "whisper" as const };
 }

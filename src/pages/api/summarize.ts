@@ -33,8 +33,8 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   try {
-    const transcript = await fetchYoutubeTranscript(url);
-    const summary = await summarizeText(transcript);
+    const transcriptResult = await fetchYoutubeTranscript(url);
+    const summary = await summarizeText(transcriptResult.text);
     const title = await fetchYoutubeTitle(url);
     const createdAt = new Date().toISOString();
     const row = {
@@ -42,8 +42,9 @@ export const POST: APIRoute = async ({ request }) => {
       source: "youtube",
       url,
       title,
-      transcript,
+      transcript: transcriptResult.text,
       summary,
+      transcriptSource: transcriptResult.source,
       createdAt,
     };
 
