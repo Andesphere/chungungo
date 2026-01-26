@@ -1,5 +1,5 @@
 {
-  "name": "media-summarizer",
+  "name": "chungungo",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
@@ -12,5 +12,6 @@
     "astro": "^5.16.15",
     "nanoid": "^5.0.7",
     "youtube-transcript": "^1.1.2"
-  }
+  },
+  "description": "YouTube video summarizer - dives deep, surfaces with the essentials"
 }

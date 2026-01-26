@@ -1,6 +1,8 @@
-# Signal / Summary Lab (POC)
+# 🦦 Chungungo
 
-Local Astro + Bun + SQLite proof‑of‑concept for summarizing YouTube videos.
+Local Astro + Bun + SQLite app for summarizing YouTube videos.
+
+> Named after the *Chungungo* (Lontra felina), the Chilean sea otter — dives deep, surfaces with the essentials.
 
 ## Features
 - Paste a YouTube URL → transcript → summary
