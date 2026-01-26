@@ -10,8 +10,12 @@
   },
   "dependencies": {
     "astro": "^5.16.15",
+    "better-sqlite3": "^12.6.2",
     "nanoid": "^5.0.7",
     "youtube-transcript": "^1.1.2"
   },
-  "description": "YouTube video summarizer - dives deep, surfaces with the essentials"
+  "description": "YouTube video summarizer - dives deep, surfaces with the essentials",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13"
+  }
 }
