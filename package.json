@@ -16,6 +16,7 @@
   },
   "description": "YouTube video summarizer - dives deep, surfaces with the essentials",
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13"
+    "@types/better-sqlite3": "^7.6.13",
+    "tsx": "^4.21.0"
   }
 }

@@ -1,12 +1,14 @@
 import type { APIRoute } from "astro";
 import { nanoid } from "nanoid";
-import { insertSummary } from "../../lib/db";
+import { insertSummary, type SummaryRow } from "../../lib/db";
 import { summarizeText } from "../../lib/summarize";
 import {
   fetchYoutubeTitle,
   fetchYoutubeTranscript,
   isYoutubeUrl,
 } from "../../lib/youtube";
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
   let payload: { url?: string } | null = null;
@@ -34,27 +36,50 @@ export const POST: APIRoute = async ({ request }) => {
 
   try {
     const transcriptResult = await fetchYoutubeTranscript(url);
-    const summary = await summarizeText(transcriptResult.text);
+    const structuredSummary = await summarizeText(transcriptResult.text);
     const title = await fetchYoutubeTitle(url);
     const createdAt = new Date().toISOString();
-    const row = {
+    
+    const row: SummaryRow = {
       id: nanoid(),
       source: "youtube",
       url,
       title,
       transcript: transcriptResult.text,
-      summary,
+      summary: structuredSummary.summary,
       transcriptSource: transcriptResult.source,
       createdAt,
+      type: structuredSummary.type,
+      detailedAnalysis: structuredSummary.detailedAnalysis || null,
+      takeaways: structuredSummary.takeaways.length > 0 
+        ? JSON.stringify(structuredSummary.takeaways) 
+        : null,
+      actionItems: structuredSummary.actionItems.length > 0 
+        ? JSON.stringify(structuredSummary.actionItems) 
+        : null,
+      skillIdeas: structuredSummary.skillIdeas.length > 0 
+        ? JSON.stringify(structuredSummary.skillIdeas) 
+        : null,
+      integrations: structuredSummary.integrations.length > 0 
+        ? JSON.stringify(structuredSummary.integrations) 
+        : null,
     };
 
     insertSummary(row);
 
-    return new Response(JSON.stringify(row), {
+    // Return parsed data for the frontend
+    return new Response(JSON.stringify({
+      ...row,
+      takeaways: structuredSummary.takeaways,
+      actionItems: structuredSummary.actionItems,
+      skillIdeas: structuredSummary.skillIdeas,
+      integrations: structuredSummary.integrations,
+    }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
+    console.error("[api/summarize] Error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to summarize video." }),
       { status: 500 }

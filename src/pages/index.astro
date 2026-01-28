@@ -1,7 +1,38 @@
 ---
-import { listSummaries } from "../lib/db";
+import { listSummaries, type ParsedSummary } from "../lib/db";
 
 const summaries = listSummaries();
+
+const typeBadges: Record<string, { emoji: string; label: string; color: string }> = {
+  coding: { emoji: "🔧", label: "Coding", color: "#ff8a60" },
+  ai: { emoji: "🤖", label: "AI", color: "#c784ff" },
+  productivity: { emoji: "⚡", label: "Productivity", color: "#5bffdd" },
+  general: { emoji: "📺", label: "General", color: "rgba(248, 245, 241, 0.5)" },
+};
+
+const channelBadges: Record<string, { emoji: string; label: string; color: string }> = {
+  youtube: { emoji: "📺", label: "YouTube", color: "#ff0000" },
+  twitter: { emoji: "𝕏", label: "Twitter", color: "#1da1f2" },
+  article: { emoji: "📰", label: "Article", color: "#4ade80" },
+};
+
+function getBadge(type: string) {
+  return typeBadges[type] || typeBadges.general;
+}
+
+function getChannelBadge(source: string) {
+  return channelBadges[source] || channelBadges.youtube;
+}
+
+function hasDetails(summary: ParsedSummary) {
+  return (
+    summary.detailedAnalysis ||
+    summary.takeaways.length > 0 ||
+    summary.actionItems.length > 0 ||
+    summary.skillIdeas.length > 0 ||
+    summary.integrations.length > 0
+  );
+}
 ---
 
 <html lang="en">
@@ -12,15 +43,8 @@ const summaries = listSummaries();
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <title>Signal / Summary Lab</title>
-    <link
-      rel="preconnect"
-      href="https://fonts.googleapis.com"
-    />
-    <link
-      rel="preconnect"
-      href="https://fonts.gstatic.com"
-      crossorigin
-    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
       rel="stylesheet"
@@ -30,32 +54,36 @@ const summaries = listSummaries();
     <main class="page">
       <header class="hero">
         <div>
-          <p class="eyebrow">Local POC · Astro + Bun + SQLite</p>
+          <p class="eyebrow">Local POC · Astro + Bun + SQLite + Clawdbot AI</p>
           <h1>Signal / Summary Lab</h1>
           <p class="lead">
-            Paste a YouTube link, pull the transcript, and get a fast summary.
-            Stored locally so you can build a library over time.
+            Paste a link from YouTube or X/Twitter, and get an AI-powered summary.
+            Technical content gets deeper analysis with actionable insights.
           </p>
         </div>
         <div class="badge">
           <span>POC</span>
-          <p>Clawdbot‑ready</p>
+          <p>Clawdbot‑powered</p>
         </div>
       </header>
 
       <section class="input-panel">
         <form id="summary-form">
           <label>
-            <span>Video URL</span>
+            <span>Content URL</span>
             <input
               name="url"
               type="url"
-              placeholder="https://www.youtube.com/watch?v=..."
+              placeholder="YouTube or X/Twitter URL..."
               required
             />
           </label>
           <button type="submit">Summarize</button>
         </form>
+        <div class="channel-hints">
+          <span class="hint youtube">📺 YouTube</span>
+          <span class="hint twitter">𝕏 Twitter</span>
+        </div>
         <p id="status" class="status">Drop a link and hit summarize.</p>
       </section>
 
@@ -64,56 +92,244 @@ const summaries = listSummaries();
           <p>No summaries yet.</p>
           <span>First one always feels good.</span>
         </div>
-        {summaries.map((summary) => (
-          <article class="summary-card">
-            <header>
-              <div class="meta">
-                <p class="source">YouTube</p>
-                <span class={`pill ${summary.transcriptSource}`}>
-                  {summary.transcriptSource === "whisper" ? "Whisper" : "Captions"}
-                </span>
-              </div>
-              <time>{new Date(summary.createdAt).toLocaleString()}</time>
-            </header>
-            <h2>{summary.title ?? "Untitled video"}</h2>
-            <p class="summary-text">{summary.summary}</p>
-            <a href={summary.url} target="_blank" rel="noreferrer">
-              View source →
-            </a>
-          </article>
-        ))}
+        {summaries.map((summary) => {
+          const badge = getBadge(summary.type);
+          const channel = getChannelBadge(summary.source);
+          const showDetails = hasDetails(summary);
+          const transcriptLabel = summary.source === "twitter" 
+            ? (summary.transcriptSource === "thread" ? "Thread" : "Tweet")
+            : (summary.transcriptSource === "whisper" ? "Whisper" : "Captions");
+          return (
+            <article class="summary-card" data-id={summary.id} data-source={summary.source}>
+              <header>
+                <div class="meta">
+                  <span class={`channel-badge ${summary.source}`} style={`--channel-color: ${channel.color}`}>
+                    {channel.emoji} {channel.label}
+                  </span>
+                  <span class={`pill ${summary.transcriptSource}`}>
+                    {transcriptLabel}
+                  </span>
+                  <span class="type-badge" style={`--badge-color: ${badge.color}`}>
+                    {badge.emoji} {badge.label}
+                  </span>
+                  {summary.model && (
+                    <span class="model-badge">
+                      🤖 {summary.model}
+                    </span>
+                  )}
+                </div>
+                <time>{new Date(summary.createdAt).toLocaleString()}</time>
+              </header>
+              <h2>{summary.title ?? "Untitled content"}</h2>
+              <p class="summary-text">{summary.summary}</p>
+              <footer>
+                <a href={summary.url} target="_blank" rel="noreferrer">
+                  View source →
+                </a>
+                {showDetails && (
+                  <button
+                    class="details-btn"
+                    data-summary={JSON.stringify({
+                      title: summary.title,
+                      type: summary.type,
+                      source: summary.source,
+                      detailedAnalysis: summary.detailedAnalysis,
+                      takeaways: summary.takeaways,
+                      actionItems: summary.actionItems,
+                      skillIdeas: summary.skillIdeas,
+                      integrations: summary.integrations,
+                    })}
+                  >
+                    View Details
+                  </button>
+                )}
+              </footer>
+            </article>
+          );
+        })}
       </section>
     </main>
+
+    <!-- Modal -->
+    <div id="modal" class="modal" hidden>
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <header class="modal-header">
+          <h2 id="modal-title">Details</h2>
+          <button class="modal-close" aria-label="Close">×</button>
+        </header>
+        <div id="modal-body" class="modal-body">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+    </div>
 
     <script>
       const form = document.getElementById("summary-form");
       const statusEl = document.getElementById("status");
       const listEl = document.getElementById("summary-list");
+      const modal = document.getElementById("modal");
+      const modalTitle = document.getElementById("modal-title");
+      const modalBody = document.getElementById("modal-body");
+
+      const typeBadges = {
+        coding: { emoji: "🔧", label: "Coding", color: "#ff8a60" },
+        ai: { emoji: "🤖", label: "AI", color: "#c784ff" },
+        productivity: { emoji: "⚡", label: "Productivity", color: "#5bffdd" },
+        general: { emoji: "📺", label: "General", color: "rgba(248, 245, 241, 0.5)" },
+      };
+
+      const channelBadges = {
+        youtube: { emoji: "📺", label: "YouTube", color: "#ff0000" },
+        twitter: { emoji: "𝕏", label: "Twitter", color: "#1da1f2" },
+        article: { emoji: "📰", label: "Article", color: "#4ade80" },
+      };
 
       const setStatus = (message, tone = "neutral") => {
         statusEl.textContent = message;
         statusEl.dataset.tone = tone;
       };
 
+      const hasDetails = (summary) => {
+        return (
+          summary.detailedAnalysis ||
+          (summary.takeaways && summary.takeaways.length > 0) ||
+          (summary.actionItems && summary.actionItems.length > 0) ||
+          (summary.skillIdeas && summary.skillIdeas.length > 0) ||
+          (summary.integrations && summary.integrations.length > 0)
+        );
+      };
+
       const renderSummary = (summary) => {
         const card = document.createElement("article");
         card.className = "summary-card";
-        const pill = summary.transcriptSource === "whisper" ? "Whisper" : "Captions";
+        card.dataset.id = summary.id;
+        card.dataset.source = summary.source || "youtube";
+        
+        const badge = typeBadges[summary.type] || typeBadges.general;
+        const channel = channelBadges[summary.source] || channelBadges.youtube;
+        const transcriptLabel = summary.source === "twitter"
+          ? (summary.transcriptSource === "thread" ? "Thread" : "Tweet")
+          : (summary.transcriptSource === "whisper" ? "Whisper" : "Captions");
+        const showDetails = hasDetails(summary);
+        
         card.innerHTML = `
           <header>
             <div class="meta">
-              <p class="source">YouTube</p>
-              <span class="pill ${summary.transcriptSource}">${pill}</span>
+              <span class="channel-badge ${summary.source || 'youtube'}" style="--channel-color: ${channel.color}">
+                ${channel.emoji} ${channel.label}
+              </span>
+              <span class="pill ${summary.transcriptSource}">${transcriptLabel}</span>
+              <span class="type-badge" style="--badge-color: ${badge.color}">
+                ${badge.emoji} ${badge.label}
+              </span>
+              ${summary.model ? `<span class="model-badge">🤖 ${summary.model}</span>` : ''}
             </div>
             <time>${new Date(summary.createdAt).toLocaleString()}</time>
           </header>
-          <h2>${summary.title ?? "Untitled video"}</h2>
+          <h2>${summary.title ?? "Untitled content"}</h2>
           <p class="summary-text">${summary.summary}</p>
-          <a href="${summary.url}" target="_blank" rel="noreferrer">View source →</a>
+          <footer>
+            <a href="${summary.url}" target="_blank" rel="noreferrer">View source →</a>
+            ${showDetails ? `
+              <button class="details-btn" data-summary='${JSON.stringify({
+                title: summary.title,
+                type: summary.type,
+                source: summary.source,
+                detailedAnalysis: summary.detailedAnalysis,
+                takeaways: summary.takeaways || [],
+                actionItems: summary.actionItems || [],
+                skillIdeas: summary.skillIdeas || [],
+                integrations: summary.integrations || [],
+              })}'>View Details</button>
+            ` : ''}
+          </footer>
         `;
+        
         listEl.prepend(card);
         listEl.dataset.empty = "false";
       };
+
+      // Modal functions
+      const openModal = (data) => {
+        modalTitle.textContent = data.title || "Video Details";
+        
+        let html = "";
+        
+        if (data.detailedAnalysis) {
+          html += `
+            <section class="modal-section">
+              <h3>📝 Detailed Analysis</h3>
+              <p>${data.detailedAnalysis}</p>
+            </section>
+          `;
+        }
+        
+        if (data.takeaways && data.takeaways.length > 0) {
+          html += `
+            <section class="modal-section">
+              <h3>💡 Key Takeaways</h3>
+              <ul>${data.takeaways.map(t => `<li>${t}</li>`).join("")}</ul>
+            </section>
+          `;
+        }
+        
+        if (data.actionItems && data.actionItems.length > 0) {
+          html += `
+            <section class="modal-section">
+              <h3>✅ Action Items</h3>
+              <ul class="action-list">${data.actionItems.map(a => `<li>${a}</li>`).join("")}</ul>
+            </section>
+          `;
+        }
+        
+        if (data.skillIdeas && data.skillIdeas.length > 0) {
+          html += `
+            <section class="modal-section highlight">
+              <h3>🔧 Clawdbot Skill Ideas</h3>
+              <ul>${data.skillIdeas.map(s => `<li>${s}</li>`).join("")}</ul>
+            </section>
+          `;
+        }
+        
+        if (data.integrations && data.integrations.length > 0) {
+          html += `
+            <section class="modal-section highlight">
+              <h3>🔗 Pudu/Clawdbot Integration Opportunities</h3>
+              <ul>${data.integrations.map(i => `<li>${i}</li>`).join("")}</ul>
+            </section>
+          `;
+        }
+        
+        modalBody.innerHTML = html || "<p>No additional details available.</p>";
+        modal.hidden = false;
+        document.body.style.overflow = "hidden";
+      };
+
+      const closeModal = () => {
+        modal.hidden = true;
+        document.body.style.overflow = "";
+      };
+
+      // Event listeners
+      document.addEventListener("click", (e) => {
+        const detailsBtn = e.target.closest(".details-btn");
+        if (detailsBtn) {
+          const data = JSON.parse(detailsBtn.dataset.summary);
+          openModal(data);
+          return;
+        }
+        
+        if (e.target.closest(".modal-close") || e.target.closest(".modal-backdrop")) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !modal.hidden) {
+          closeModal();
+        }
+      });
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -121,7 +337,7 @@ const summaries = listSummaries();
         const url = formData.get("url");
         if (!url) return;
 
-        setStatus("Fetching transcript and building summary…", "busy");
+        setStatus("Fetching transcript and building AI summary…", "busy");
         form.querySelector("button").disabled = true;
 
         try {
@@ -357,6 +573,7 @@ const summaries = listSummaries();
     display: inline-flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
   }
 
   .pill {
@@ -379,6 +596,90 @@ const summaries = listSummaries();
     border-color: rgba(91, 255, 221, 0.4);
   }
 
+  .pill.tweet {
+    color: #1da1f2;
+    border-color: rgba(29, 161, 242, 0.4);
+  }
+
+  .pill.thread {
+    color: #c784ff;
+    border-color: rgba(199, 132, 255, 0.4);
+  }
+
+  .channel-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--channel-color, #f8f5f1);
+    border: 1px solid var(--channel-color, rgba(255, 255, 255, 0.3));
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .channel-badge.youtube {
+    --channel-color: #ff4444;
+  }
+
+  .channel-badge.twitter {
+    --channel-color: #1da1f2;
+  }
+
+  .channel-hints {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .hint {
+    font-size: 0.75rem;
+    color: rgba(248, 245, 241, 0.5);
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+  }
+
+  .hint.youtube {
+    border-color: rgba(255, 68, 68, 0.3);
+    color: rgba(255, 68, 68, 0.7);
+  }
+
+  .hint.twitter {
+    border-color: rgba(29, 161, 242, 0.3);
+    color: rgba(29, 161, 242, 0.7);
+  }
+
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--badge-color, #f8f5f1);
+    border: 1px solid var(--badge-color, rgba(255, 255, 255, 0.3));
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .model-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: rgba(248, 245, 241, 0.6);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
   .summary-card h2 {
     margin: 0;
     font-family: "Fraunces", serif;
@@ -391,10 +692,164 @@ const summaries = listSummaries();
     line-height: 1.6;
   }
 
+  .summary-card footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 8px;
+  }
+
   .summary-card a {
     color: #5bffdd;
     text-decoration: none;
     font-size: 0.9rem;
+  }
+
+  .details-btn {
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(199, 132, 255, 0.5);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: rgba(199, 132, 255, 0.1);
+    color: #c784ff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .details-btn:hover {
+    background: rgba(199, 132, 255, 0.2);
+    border-color: rgba(199, 132, 255, 0.8);
+  }
+
+  /* Modal */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal[hidden] {
+    display: none;
+  }
+
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+  }
+
+  .modal-content {
+    position: relative;
+    width: 100%;
+    max-width: 700px;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: rgba(15, 15, 15, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 28px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: sticky;
+    top: 0;
+    background: rgba(15, 15, 15, 0.98);
+    z-index: 1;
+  }
+
+  .modal-header h2 {
+    margin: 0;
+    font-family: "Fraunces", serif;
+    font-size: 1.3rem;
+    max-width: calc(100% - 50px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .modal-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: #f8f5f1;
+    font-size: 1.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .modal-body {
+    padding: 28px;
+    display: grid;
+    gap: 28px;
+  }
+
+  .modal-section {
+    display: grid;
+    gap: 12px;
+  }
+
+  .modal-section h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: rgba(248, 245, 241, 0.9);
+  }
+
+  .modal-section p {
+    margin: 0;
+    line-height: 1.7;
+    color: rgba(248, 245, 241, 0.75);
+  }
+
+  .modal-section ul {
+    margin: 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .modal-section li {
+    line-height: 1.6;
+    color: rgba(248, 245, 241, 0.75);
+  }
+
+  .modal-section.highlight {
+    padding: 20px;
+    border-radius: 16px;
+    background: rgba(199, 132, 255, 0.08);
+    border: 1px solid rgba(199, 132, 255, 0.2);
+  }
+
+  .modal-section.highlight h3 {
+    color: #c784ff;
+  }
+
+  .action-list li {
+    color: #5bffdd;
   }
 
   @media (max-width: 840px) {
@@ -404,6 +859,11 @@ const summaries = listSummaries();
 
     form {
       grid-template-columns: 1fr;
+    }
+
+    .summary-card footer {
+      flex-direction: column;
+      align-items: flex-start;
     }
   }
 </style>
