@@ -117,9 +117,27 @@ const agentModelMap: Record<string, string> = {
 };
 
 /**
+ * Resolve clawdbot binary path
+ */
+function resolveClawdbotPath(): string {
+  const candidates = [
+    process.env.CLAWDBOT_PATH,
+    join(process.env.HOME || "", ".npm-global/bin/clawdbot"),
+    "/usr/local/bin/clawdbot",
+    "clawdbot", // fallback to PATH
+  ].filter(Boolean) as string[];
+  
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return "clawdbot"; // fallback
+}
+
+/**
  * Call Clawdbot agent for AI summarization
  */
 async function clawdbotSummarize(text: string): Promise<StructuredSummary | null> {
+  const clawdbotBin = resolveClawdbotPath();
   const agent = process.env.CLAWDBOT_SUMMARIZER_AGENT || "echo";
   const timeout = process.env.CLAWDBOT_SUMMARIZER_TIMEOUT || "180";
   const thinking = process.env.CLAWDBOT_SUMMARIZER_THINKING || "medium";
@@ -140,7 +158,7 @@ async function clawdbotSummarize(text: string): Promise<StructuredSummary | null
   }
   
   return new Promise((resolve) => {
-    const child = spawn("clawdbot", args);
+    const child = spawn(clawdbotBin, args);
     
     let stdout = "";
     let stderr = "";

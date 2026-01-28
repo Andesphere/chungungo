@@ -1,11 +1,18 @@
 import { YoutubeTranscript } from "youtube-transcript";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { join } from "node:path";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const YOUTUBE_URL_REGEX = /(youtu.be\/|youtube.com\/watch\?v=|youtube.com\/shorts\/)([\w-]{11})/;
 
 export function isYoutubeUrl(url: string) {
   return YOUTUBE_URL_REGEX.test(url);
+}
+
+export function extractVideoId(url: string): string | null {
+  const match = url.match(YOUTUBE_URL_REGEX);
+  return match ? match[2] : null;
 }
 
 export async function fetchYoutubeTitle(url: string) {
@@ -21,43 +28,72 @@ export async function fetchYoutubeTitle(url: string) {
   }
 }
 
-async function transcribeWithWhisper(url: string) {
-  const pythonPath =
-    process.env.WHISPER_PYTHON ?? join(process.cwd(), ".venv", "bin", "python");
-  const scriptPath = join(process.cwd(), "scripts", "transcribe.py");
+/**
+ * Parse VTT subtitle file and extract plain text
+ */
+function parseVttToText(vttContent: string): string {
+  const lines = vttContent.split("\n");
+  const textLines: string[] = [];
+  const seen = new Set<string>();
 
-  return await new Promise<string>((resolve, reject) => {
-    const child = spawn(pythonPath, [scriptPath, url]);
-    let stdout = "";
-    let stderr = "";
+  for (const line of lines) {
+    // Skip WEBVTT header, timestamps, positioning
+    if (
+      line.startsWith("WEBVTT") ||
+      line.startsWith("Kind:") ||
+      line.startsWith("Language:") ||
+      line.includes("-->") ||
+      line.includes("align:") ||
+      line.trim() === ""
+    ) {
+      continue;
+    }
 
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
+    // Remove VTT timing tags like <00:00:00.640><c>
+    const cleanLine = line
+      .replace(/<[\d:.]+>/g, "")
+      .replace(/<\/?c>/g, "")
+      .replace(/<\/?[^>]+>/g, "")
+      .trim();
 
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
+    if (cleanLine && !seen.has(cleanLine)) {
+      seen.add(cleanLine);
+      textLines.push(cleanLine);
+    }
+  }
 
-    child.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(stderr || `Whisper failed with code ${code}`));
-        return;
-      }
+  return textLines.join(" ").replace(/\s+/g, " ").trim();
+}
 
-      try {
-        const lastLine = stdout.trim().split("\n").pop();
-        if (!lastLine) throw new Error("Empty output");
-        const data = JSON.parse(lastLine);
-        resolve((data.transcript ?? "").trim());
-      } catch (error) {
-        reject(new Error("Whisper output was invalid."));
-      }
-    });
-  });
+/**
+ * Fetch auto-generated captions using yt-dlp
+ */
+async function fetchAutoSubsWithYtDlp(url: string): Promise<string> {
+  const videoId = extractVideoId(url);
+  if (!videoId) throw new Error("Invalid YouTube URL");
+
+  const tmpDir = mkdtempSync(join(tmpdir(), "yt-subs-"));
+
+  try {
+    // Try auto-generated subs first, then regular subs
+    execSync(
+      `yt-dlp --write-auto-sub --sub-lang en --skip-download --sub-format vtt -o "${join(tmpDir, "sub")}" "${url}"`,
+      { encoding: "utf-8", timeout: 60000, stdio: ["pipe", "pipe", "pipe"] }
+    );
+
+    // Find the VTT file
+    const vttPath = join(tmpDir, `sub.en.vtt`);
+    const vttContent = readFileSync(vttPath, "utf-8");
+    return parseVttToText(vttContent);
+  } finally {
+    try {
+      rmSync(tmpDir, { recursive: true });
+    } catch {}
+  }
 }
 
 export async function fetchYoutubeTranscript(url: string) {
+  // Try youtube-transcript library first (fastest)
   try {
     const items = await YoutubeTranscript.fetchTranscript(url);
     const text = items.map((item) => item.text).join(" ").trim();
@@ -65,9 +101,10 @@ export async function fetchYoutubeTranscript(url: string) {
       return { text, source: "captions" as const };
     }
   } catch {
-    // fall through to whisper
+    // fall through to yt-dlp
   }
 
-  const fallback = await transcribeWithWhisper(url);
-  return { text: fallback, source: "whisper" as const };
+  // Fallback: use yt-dlp to get auto-generated captions
+  const fallback = await fetchAutoSubsWithYtDlp(url);
+  return { text: fallback, source: "auto-captions" as const };
 }

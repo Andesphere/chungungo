@@ -49,7 +49,7 @@ export type SummaryRow = {
   title: string | null;
   transcript: string;
   summary: string;
-  transcriptSource: "captions" | "whisper" | "tweet" | "thread";
+  transcriptSource: "captions" | "auto-captions" | "whisper" | "tweet" | "thread";
   createdAt: string;
   // Enhanced fields
   type: SummaryType;
